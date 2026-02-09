@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fire Risk Dashboard</title>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #f0f4f8;
+            --sidebar-bg: #ffffff;
+            --text-main: #2d3748;
+            --text-secondary: #718096;
+            --accent-blue: #e0f2f1;
+            /* Soft Mint */
+            --accent-blue-text: #00695c;
+            --card-sf: #ffffff;
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
+            --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.05);
+            --radius-lg: 16px;
+            --radius-md: 12px;
+
+            /* Status Colors */
+            --status-safe-bg: #e6fffa;
+            --status-safe-text: #2c7a7b;
+            --status-warning-bg: #fffaf0;
+            --status-warning-text: #c05621;
+            --status-danger-bg: #fff5f5;
+            --status-danger-text: #c53030;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 250px;
+            background: var(--sidebar-bg);
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid rgba(0, 0, 0, 0.05);
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 3rem;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .nav-item {
+            padding: 0.75rem 1rem;
+            margin-bottom: 0.5rem;
+            border-radius: var(--radius-md);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .nav-item:hover,
+        .nav-item.active {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-weight: 500;
+        }
+
+        .connect-btn {
+            margin-top: auto;
+            padding: 1rem;
+            background-color: var(--text-main);
+            color: white;
+            border: none;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            font-weight: 500;
+            transition: transform 0.1s;
+        }
+
+        .connect-btn:active {
+            transform: scale(0.98);
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            padding: 2rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            font-weight: 500;
+        }
+
+        .date {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        /* Grid Layout */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: auto 1fr;
+            gap: 1.5rem;
+            height: 100%;
+        }
+
+        .card {
+            background: var(--card-sf);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+            box-shadow: var(--shadow-md);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .card-title {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        /* Specific Cards */
+        .status-card {
+            grid-column: span 1;
+        }
+
+        .risk-card {
+            grid-column: span 1;
+        }
+
+        .gas-card {
+            grid-column: span 1;
+        }
+
+        .flame-card {
+            grid-column: span 1;
+        }
+
+        .chart-card {
+            grid-column: span 3;
+            grid-row: span 2;
+            min-height: 300px;
+        }
+
+        .log-card {
+            grid-column: span 1;
+            grid-row: span 2;
+            overflow: hidden;
+        }
+
+        /* Values & Badges */
+        .value-large {
+            font-size: 2.5rem;
+            font-weight: 600;
+            margin-top: 0.5rem;
+        }
+
+        .unit {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            font-weight: 400;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-top: 0.5rem;
+        }
+
+        .badge.safe {
+            background: var(--status-safe-bg);
+            color: var(--status-safe-text);
+        }
+
+        .badge.warning {
+            background: var(--status-warning-bg);
+            color: var(--status-warning-text);
+        }
+
+        .badge.emergency {
+            background: var(--status-danger-bg);
+            color: var(--status-danger-text);
+        }
+
+        /* Log List */
+        .log-list {
+            list-style: none;
+            margin-top: 1rem;
+            overflow-y: auto;
+            max-height: 100%;
+            font-size: 0.85rem;
+        }
+
+        .log-item {
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #eee;
+            color: var(--text-secondary);
+        }
+
+        .log-item strong {
+            color: var(--text-main);
+        }
+
+        .log-time {
+            font-size: 0.75rem;
+            color: #ccc;
+            display: block;
+            margin-top: 0.2rem;
+        }
+    </style>
+</head>
+
+<body>
+
+    <aside class="sidebar">
+        <div class="logo">
+            <i class="ph-fill ph-fire" style="color: var(--status-danger-text);"></i>
+            FireGuard
+        </div>
+        <nav>
+            <div class="nav-item active">
+                <i class="ph ph-chart-bar"></i>
+                Dashboard
+            </div>
+            <div class="nav-item">
+                <i class="ph ph-gear"></i>
+                Settings
+            </div>
+            <div class="nav-item">
+                <i class="ph ph-file-text"></i>
+                Logs
+            </div>
+        </nav>
+        <button id="connectBtn" class="connect-btn">Connect Device</button>
+    </aside>
+
+    <main class="main-content">
+        <header class="header">
+            <div>
+                <h1>Overview <small style="font-size: 0.5em; color: #ccc;">v1.2</small></h1>
+                <div class="date" id="currentDate">Monday, 14 Oct</div>
+            </div>
+            <div class="badge safe" id="connectionStatus">Disconnected</div>
+        </header>
+
+        <section class="grid">
+            <!-- Top Row Stats -->
+            <div class="card status-card">
+                <div class="card-title">System State</div>
+                <div class="badge safe" id="systemStateBadge">Loading...</div>
+            </div>
+
+            <div class="card risk-card">
+                <div class="card-title">Risk Score</div>
+                <div class="value-large">
+                    <span id="riskValue">0</span><span class="unit">%</span>
+                </div>
+            </div>
+
+            <div class="card gas-card">
+                <div class="card-title">Gas Z-Score</div>
+                <div class="value-large" id="zScoreValue">0.0</div>
+            </div>
+
+            <div class="card flame-card">
+                <div class="card-title">Flame Status</div>
+                <div class="value-large" style="font-size: 1.5rem; margin-top: 1rem;" id="flameStatus">Safe</div>
+            </div>
+
+            <!-- Middle/Bottom Row -->
+            <div class="card chart-card">
+                <div class="card-title">Live Trend</div>
+                <div style="flex:1; position: relative;">
+                    <canvas id="liveChart"></canvas>
+                </div>
+            </div>
+
+            <div class="card log-card">
+                <div class="card-title">Recent Events</div>
+                <ul class="log-list" id="eventLog">
+                    <li class="log-item">Waiting for connection...</li>
+                </ul>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // DOM Elements
+        const connectBtn = document.getElementById('connectBtn');
+        const statusBadge = document.getElementById('connectionStatus');
+        const systemStateBadge = document.getElementById('systemStateBadge');
+        const riskValue = document.getElementById('riskValue');
+        const zScoreValue = document.getElementById('zScoreValue');
+        const flameStatus = document.getElementById('flameStatus');
+        const logList = document.getElementById('eventLog');
+        const currentDate = document.getElementById('currentDate');
+
+        // Update Date
+        const now = new Date();
+        currentDate.innerText = now.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+
+        // Chart Configuration
+        const ctx = document.getElementById('liveChart').getContext('2d');
+        const liveChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Risk Score',
+                    borderColor: '#c53030', // Red
+                    backgroundColor: 'rgba(197, 48, 48, 0.1)',
+                    data: [],
+                    fill: true,
+                    tension: 0.4
+                }, {
+                    label: 'Gas Value (Scaled)',
+                    borderColor: '#3182ce', // Blue
+                    backgroundColor: 'rgba(49, 130, 206, 0.1)',
+                    data: [],
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                scales: {
+                    x: { display: false },
+                    y: { beginAtZero: true, max: 100 }
+                }
+            }
+        });
+
+        // Serial Connection Variables
+        let port;
+        let reader;
+        let keepReading = false;
+        let eventSource;
+
+        // Helper to log to the UI
+        function logToDashboard(message) {
+            const li = document.createElement('li');
+            li.className = 'log-item';
+            li.innerHTML = `<strong>${new Date().toLocaleTimeString()}</strong>: ${message}`;
+            logList.prepend(li); // Add to top
+            // Keep list size manageable
+            if (logList.children.length > 50) {
+                logList.removeChild(logList.lastChild);
+            }
+        }
+
+        async function connectSerial() {
+            if ('serial' in navigator) {
+                try {
+                    port = await navigator.serial.requestPort();
+                    await port.open({ baudRate: 115200 });
+
+                    statusBadge.innerText = "Connected (USB)";
+                    statusBadge.className = 'badge safe';
+                    connectBtn.innerText = "Disconnect USB";
+                    logToDashboard("Connected via USB Serial");
+
+                    keepReading = true;
+                    readSerialLoop();
+                } catch (err) {
+                    console.error("Serial Connection Error:", err);
+                    logToDashboard(`Serial Error: ${err.message}`);
+                    alert("Failed to connect via USB. See logs.");
+                }
+            } else {
+                alert("Web Serial API not supported. Please use Chrome/Edge.");
+            }
+        }
+
+        // Connect Button Listener
+        connectBtn.addEventListener('click', async () => {
+            const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:';
+
+            if (isLocal) {
+                // If local, toggle Serial
+                if (port && port.readable) {
+                    // Disconnect logic could go here, but for now just reload or ignore
+                    location.reload();
+                } else {
+                    await connectSerial();
+                }
+            } else {
+                // If on device, toggle SSE (Reconnect)
+                logToDashboard("Manual reconnection attempt...");
+                if (eventSource && eventSource.readyState !== EventSource.CLOSED) {
+                    eventSource.close();
+                }
+                startSSE();
+            }
+        });
+
+        // Auto-connect Logic
+        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:';
+
+        if (isLocal) {
+            console.log("Running locally. Defaulting to USB Serial mode.");
+            connectBtn.innerText = "Connect via USB";
+            logToDashboard("Ready. Click 'Connect via USB' to start.");
+        } else {
+            console.log("Hosted on device, attempting SSE connection...");
+            connectBtn.innerText = "Reconnect WiFi";
+            startSSE();
+        }
+
+        function startSSE() {
+            logToDashboard("Connecting to Event Stream at /events...");
+            statusBadge.innerText = "Connecting...";
+            statusBadge.className = 'badge warning';
+
+            if (eventSource) eventSource.close();
+
+            eventSource = new EventSource('/events');
+
+            eventSource.onopen = function () {
+                console.log("SSE Connected");
+                logToDashboard("WiFi Connected successfully.");
+                statusBadge.innerText = "Connected (Wi-Fi)";
+                statusBadge.className = 'badge safe';
+            };
+
+            eventSource.onerror = function (e) {
+                console.log("SSE Error", e);
+                if (eventSource.readyState != EventSource.OPEN) {
+                    statusBadge.innerText = "Reconnecting...";
+                    statusBadge.className = 'badge warning';
+                }
+            };
+
+            eventSource.onmessage = function (e) {
+                parseData(e.data);
+            };
+        }
+
+        async function readSerialLoop() {
+            const textDecoder = new TextDecoderStream();
+            const readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
+            const reader = textDecoder.readable.getReader();
+
+            let buffer = "";
+
+            try {
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+
+                    buffer += value;
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop(); // Keep incomplete line in buffer
+
+                    for (const line of lines) {
+                        parseData(line.trim());
+                    }
+                }
+            } catch (error) {
+                console.error("Read Error:", error);
+            } finally {
+                reader.releaseLock();
+            }
+        }
+
+        function parseData(line) {
+            // Expected format: "Gas:1200,ZScore:0.5,Risk:2.5,Flame:0,State:SAFE"
+            // Tolerant Regex
+            const regex = /Gas:([\d.]+),ZScore:([\d.-]+),Risk:([\d.]+),Flame:(\d),State:(\w+)/;
+            const match = line.match(regex);
+
+            if (match) {
+                const gas = parseFloat(match[1]);
+                const zScore = parseFloat(match[2]);
+                const risk = parseFloat(match[3]);
+                const flame = parseInt(match[4]);
+                const state = match[5];
+
+                updateDashboard(gas, zScore, risk, flame, state);
+            }
+        }
+
+        function updateDashboard(gas, zScore, risk, flame, state) {
+            // Update Text Values
+            riskValue.innerText = risk.toFixed(1);
+            zScoreValue.innerText = zScore.toFixed(2);
+
+            // Update State Badge
+            systemStateBadge.innerText = state;
+            systemStateBadge.className = 'badge'; // Reset classes
+            if (state === 'SAFE') systemStateBadge.classList.add('safe');
+            else if (state === 'WARNING') systemStateBadge.classList.add('warning');
+            else systemStateBadge.classList.add('emergency');
+
+            // Update Flame Status
+            if (flame === 1) {
+                flameStatus.innerText = "FIRE DETECTED";
+                flameStatus.style.color = "red";
+            } else {
+                flameStatus.innerText = "Safe";
+                flameStatus.style.color = "var(--text-main)";
+            }
+
+            // Update Chart
+            addDataToChart(liveChart, risk, gas / 40);
+        }
+
+        function addDataToChart(chart, risk, gas) {
+            const label = new Date().toLocaleTimeString();
+
+            if (chart.data.labels.length > 50) {
+                chart.data.labels.shift();
+                chart.data.datasets[0].data.shift();
+                chart.data.datasets[1].data.shift();
+            }
+
+            chart.data.labels.push(label);
+            chart.data.datasets[0].data.push(risk);
+            chart.data.datasets[1].data.push(gas);
+            chart.update();
+        }
+    </script>
+</body>
+
+</html>

@@ -50,28 +50,96 @@ let port;
 let reader;
 let keepReading = false;
 
+// Helper to log to the UI
+function logToDashboard(message) {
+    const li = document.createElement('li');
+    li.className = 'log-item';
+    li.innerHTML = `<strong>${new Date().toLocaleTimeString()}</strong>: ${message}`;
+    logList.prepend(li); // Add to top
+    // Keep list size manageable
+    if (logList.children.length > 50) {
+        logList.removeChild(logList.lastChild);
+    }
+}
+
 // Connect Button Listener
 connectBtn.addEventListener('click', async () => {
+    // If we are on HTTP, this is a Reconnect button for SSE
+    if (window.location.protocol.startsWith('http')) {
+        logToDashboard("Manual reconnection attempt...");
+        if (eventSource && eventSource.readyState !== EventSource.CLOSED) {
+            eventSource.close();
+        }
+        startSSE();
+        return;
+    }
+
+    // Otherwise, try Web Serial (USB)
     if ('serial' in navigator) {
         try {
             port = await navigator.serial.requestPort();
             await port.open({ baudRate: 115200 });
 
-            statusBadge.innerText = "Connected";
-            statusBadge.classList.remove('warning', 'emergency');
-            statusBadge.classList.add('safe');
+            statusBadge.innerText = "Connected (USB)";
+            statusBadge.className = 'badge safe';
             connectBtn.innerText = "Disconnect";
+            logToDashboard("Connected via USB Serial");
 
             keepReading = true;
             readSerialLoop();
         } catch (err) {
             console.error("Serial Connection Error:", err);
-            alert("Failed to connect. Make sure your ESP32 is plugged in and no other app (like VS Code Monitor) is using the port.");
+            logToDashboard(`Serial Error: ${err.message}`);
+            alert("Failed to connect via USB. See logs.");
         }
     } else {
-        alert("Web Serial API not supported in this browser. Please use Chrome or Edge.");
+        alert("Web Serial API not supported. Please use Chrome/Edge or connect via WiFi.");
     }
 });
+
+let eventSource;
+
+// Auto-connect if hosted on ESP32 (Wi-Fi)
+if (window.location.hostname && window.location.protocol.startsWith('http')) {
+    console.log("Hosted on device, attempting SSE connection...");
+    connectBtn.innerText = "Reconnect WiFi"; // Change button text
+    // connectBtn.style.display = 'none'; // Keep visible for retry
+    startSSE();
+} else {
+    logToDashboard("Ready. Connect via USB or load from Device IP.");
+}
+
+function startSSE() {
+    logToDashboard("Connecting to Event Stream at /events...");
+    statusBadge.innerText = "Connecting...";
+    statusBadge.className = 'badge warning';
+
+    if (eventSource) eventSource.close();
+
+    eventSource = new EventSource('/events');
+
+    eventSource.onopen = function () {
+        console.log("SSE Connected");
+        logToDashboard("WiFi Connected successfully.");
+        statusBadge.innerText = "Connected (Wi-Fi)";
+        statusBadge.className = 'badge safe';
+    };
+
+    eventSource.onerror = function (e) {
+        console.log("SSE Error", e);
+        // EventSource automatically retries, but let's update UI
+        if (eventSource.readyState != EventSource.OPEN) {
+            statusBadge.innerText = "Reconnecting...";
+            statusBadge.className = 'badge warning';
+            // logToDashboard("Connection lost. Retrying..."); // Don't spam logs
+        }
+    };
+
+    eventSource.onmessage = function (e) {
+        // console.log("SSE Data:", e.data);
+        parseData(e.data);
+    };
+}
 
 async function readSerialLoop() {
     const textDecoder = new TextDecoderStream();
