@@ -849,6 +849,7 @@
         const currentDate = document.getElementById('currentDate');
 
         // Sim DOM
+        const navDashboard = document.getElementById('navDashboard');
         const navSimulate = document.getElementById('navSimulate');
         const simBanner = document.getElementById('simBanner');
         const simStartBtn = document.getElementById('simStartBtn');
@@ -1207,28 +1208,37 @@
             return SIM_PHASES.reduce((sum, p) => sum + Math.ceil((p.duration * 1000) / speed), 0);
         }
 
-        // Toggle simulate panel
-        navSimulate.addEventListener('click', () => {
-            const isActive = simBanner.classList.contains('active');
-            if (isActive) {
-                // Turn off sim panel
-                simBanner.classList.remove('active');
-                simSensorRow.style.display = 'none';
-                mlSection.classList.remove('active');
-                navSimulate.classList.remove('sim-active');
-                if (simRunning) stopSimulation();
-            } else {
-                // Turn on sim panel
-                simBanner.classList.add('active');
-                simSensorRow.style.display = 'grid';
-                mlSection.classList.add('active');
-                navSimulate.classList.add('sim-active');
-                statusBadge.innerText = "Simulation";
-                statusBadge.className = 'badge warning';
-                logToDashboard("Simulation mode activated");
-                loadMLModel(); // Load model when sim tab opens
-            }
-        });
+        // Navigation handlers
+        function showDashboard() {
+            simBanner.classList.remove('active');
+            simSensorRow.style.display = 'none';
+            mlSection.classList.remove('active');
+            navSimulate.classList.remove('sim-active');
+            
+            navDashboard.classList.add('active');
+            navSimulate.classList.remove('active');
+            
+            if (simRunning) stopSimulation();
+            logToDashboard("Switched to Dashboard view");
+        }
+
+        function showSimulate() {
+            simBanner.classList.add('active');
+            simSensorRow.style.display = 'grid';
+            mlSection.classList.add('active');
+            navSimulate.classList.add('sim-active');
+            
+            navSimulate.classList.add('active');
+            navDashboard.classList.remove('active');
+            
+            statusBadge.innerText = "Simulation";
+            statusBadge.className = 'badge warning';
+            logToDashboard("Simulation mode activated");
+            loadMLModel();
+        }
+
+        navDashboard.addEventListener('click', showDashboard);
+        navSimulate.addEventListener('click', showSimulate);
 
         simStartBtn.addEventListener('click', () => {
             if (simRunning) {
