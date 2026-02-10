@@ -7,6 +7,7 @@
     <title>Fire Risk Dashboard</title>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0"></script>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -15,21 +16,23 @@
             --text-main: #2d3748;
             --text-secondary: #718096;
             --accent-blue: #e0f2f1;
-            /* Soft Mint */
             --accent-blue-text: #00695c;
             --card-sf: #ffffff;
             --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
             --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.05);
             --radius-lg: 16px;
             --radius-md: 12px;
-
-            /* Status Colors */
             --status-safe-bg: #e6fffa;
             --status-safe-text: #2c7a7b;
             --status-warning-bg: #fffaf0;
             --status-warning-text: #c05621;
             --status-danger-bg: #fff5f5;
             --status-danger-text: #c53030;
+            --trend-rising: #e53e3e;
+            --trend-stable: #38a169;
+            --trend-falling: #3182ce;
+            --sim-accent: #6c5ce7;
+            --sim-accent-light: #f0edff;
         }
 
         * {
@@ -88,14 +91,27 @@
 
         .connect-btn {
             margin-top: auto;
-            padding: 1rem;
-            background-color: var(--text-main);
-            color: white;
+            padding: 0.75rem 1rem;
+            background-color: var(--bg-color);
+            color: var(--text-main);
             border: none;
             border-radius: var(--radius-md);
             cursor: pointer;
             font-weight: 500;
-            transition: transform 0.1s;
+            font-size: 1rem;
+            font-family: 'Outfit', sans-serif;
+            transition: all 0.2s;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+        }
+
+        .connect-btn:hover {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-weight: 500;
         }
 
         .connect-btn:active {
@@ -109,7 +125,7 @@
             overflow-y: auto;
             display: flex;
             flex-direction: column;
-            gap: 2rem;
+            gap: 1.5rem;
         }
 
         .header {
@@ -128,13 +144,25 @@
             font-size: 0.9rem;
         }
 
-        /* Grid Layout */
-        .grid {
+        /* Grid Layouts */
+        .stats-row {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            grid-template-rows: auto 1fr;
-            gap: 1.5rem;
-            height: 100%;
+            gap: 1rem;
+        }
+
+        .detail-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+        }
+
+        .bottom-row {
+            display: grid;
+            grid-template-columns: 3fr 1fr;
+            gap: 1rem;
+            flex: 1;
+            min-height: 500px;
         }
 
         .card {
@@ -147,46 +175,33 @@
         }
 
         .card-title {
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             color: var(--text-secondary);
             margin-bottom: 0.5rem;
             font-weight: 500;
-        }
-
-        /* Specific Cards */
-        .status-card {
-            grid-column: span 1;
-        }
-
-        .risk-card {
-            grid-column: span 1;
-        }
-
-        .gas-card {
-            grid-column: span 1;
-        }
-
-        .flame-card {
-            grid-column: span 1;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .chart-card {
-            grid-column: span 3;
-            grid-row: span 2;
-            min-height: 300px;
-        }
-
-        .log-card {
-            grid-column: span 1;
-            grid-row: span 2;
+            min-height: 450px;
             overflow: hidden;
         }
 
-        /* Values & Badges */
+        .log-card {
+            overflow: hidden;
+        }
+
         .value-large {
-            font-size: 2.5rem;
+            font-size: 2.2rem;
             font-weight: 600;
-            margin-top: 0.5rem;
+            margin-top: 0.25rem;
+        }
+
+        .value-medium {
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin-top: 0.25rem;
         }
 
         .unit {
@@ -219,17 +234,47 @@
             color: var(--status-danger-text);
         }
 
-        /* Log List */
+        .trend-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 0.25rem;
+        }
+
+        .trend-arrow {
+            font-size: 1.6rem;
+            font-weight: 700;
+            transition: color 0.3s;
+        }
+
+        .trend-rising {
+            color: var(--trend-rising);
+        }
+
+        .trend-stable {
+            color: var(--trend-stable);
+        }
+
+        .trend-falling {
+            color: var(--trend-falling);
+        }
+
+        .card-sublabel {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+
         .log-list {
             list-style: none;
-            margin-top: 1rem;
+            margin-top: 0.5rem;
             overflow-y: auto;
             max-height: 100%;
             font-size: 0.85rem;
         }
 
         .log-item {
-            padding: 0.75rem 0;
+            padding: 0.6rem 0;
             border-bottom: 1px solid #eee;
             color: var(--text-secondary);
         }
@@ -238,11 +283,334 @@
             color: var(--text-main);
         }
 
-        .log-time {
-            font-size: 0.75rem;
-            color: #ccc;
+        /* ========== SIMULATION PANEL ========== */
+        .sim-banner {
+            display: none;
+            background: linear-gradient(135deg, var(--sim-accent), #8b5cf6);
+            color: white;
+            border-radius: var(--radius-lg);
+            padding: 1.25rem 1.5rem;
+            align-items: center;
+            gap: 1rem;
+            animation: simPulse 2s ease-in-out infinite;
+        }
+
+        .sim-banner.active {
+            display: flex;
+        }
+
+        @keyframes simPulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 0 0 rgba(108, 92, 231, 0.3);
+            }
+
+            50% {
+                box-shadow: 0 0 20px 4px rgba(108, 92, 231, 0.15);
+            }
+        }
+
+        .sim-banner-icon {
+            font-size: 1.5rem;
+        }
+
+        .sim-banner-text {
+            flex: 1;
+        }
+
+        .sim-banner-title {
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .sim-banner-sub {
+            font-size: 0.8rem;
+            opacity: 0.85;
+        }
+
+        .sim-controls {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .sim-btn {
+            padding: 0.5rem 1rem;
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 500;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+
+        .sim-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            border-color: rgba(255, 255, 255, 0.6);
+        }
+
+        .sim-btn.primary {
+            background: white;
+            color: var(--sim-accent);
+            border-color: white;
+        }
+
+        .sim-btn.primary:hover {
+            background: #f0edff;
+        }
+
+        .sim-speed {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.8rem;
+            opacity: 0.9;
+        }
+
+        .sim-speed select {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 6px;
+            padding: 0.3rem 0.4rem;
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+
+        .sim-speed select option {
+            color: #333;
+            background: white;
+        }
+
+        .sim-progress {
+            height: 3px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+            margin-top: 0.75rem;
+            overflow: hidden;
+        }
+
+        .sim-progress-bar {
+            height: 100%;
+            background: white;
+            border-radius: 2px;
+            transition: width 0.5s linear;
+            width: 0%;
+        }
+
+        /* Nav active highlight for simulate */
+        .nav-item.sim-active {
+            background: var(--sim-accent-light);
+            color: var(--sim-accent);
+            font-weight: 500;
+        }
+
+        /* ========== ML IMAGE DETECTION ========== */
+        .ml-section {
+            display: none;
+            gap: 1rem;
+        }
+
+        .ml-section.active {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .ml-card {
+            background: var(--card-sf);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+            box-shadow: var(--shadow-md);
+            border-left: 3px solid var(--sim-accent);
+        }
+
+        .drop-zone {
+            border: 2px dashed var(--text-secondary);
+            border-radius: var(--radius-md);
+            padding: 2.5rem 1.5rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            min-height: 200px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            margin-top: 0.75rem;
+        }
+
+        .drop-zone:hover,
+        .drop-zone.dragover {
+            border-color: var(--sim-accent);
+            background: var(--sim-accent-light);
+        }
+
+        .drop-zone-icon {
+            font-size: 2.5rem;
+            color: var(--text-secondary);
+        }
+
+        .drop-zone-text {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .drop-zone-text strong {
+            color: var(--sim-accent);
+            cursor: pointer;
+        }
+
+        .drop-zone img {
+            max-width: 100%;
+            max-height: 250px;
+            border-radius: 8px;
+            object-fit: contain;
+        }
+
+        .ml-result {
+            margin-top: 1rem;
+            padding: 1.25rem;
+            border-radius: var(--radius-md);
+            text-align: center;
+            display: none;
+        }
+
+        .ml-result.active {
             display: block;
+        }
+
+        .ml-result.fire {
+            background: var(--status-danger-bg);
+            border: 1px solid rgba(197, 48, 48, 0.2);
+        }
+
+        .ml-result.safe {
+            background: var(--status-safe-bg);
+            border: 1px solid rgba(44, 122, 123, 0.2);
+        }
+
+        .ml-result-label {
+            font-size: 1.6rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .ml-result-confidence {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .confidence-bar {
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            margin-top: 0.75rem;
+            overflow: hidden;
+        }
+
+        .confidence-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+
+        .ml-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+            margin-top: 1rem;
+        }
+
+        .ml-stat-item {
+            padding: 0.75rem;
+            background: var(--bg-color);
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .ml-stat-value {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .ml-stat-label {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
             margin-top: 0.2rem;
+        }
+
+        .ml-model-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+            padding: 0.6rem 1rem;
+            background: var(--bg-color);
+            border-radius: 8px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .ml-model-status .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #cbd5e0;
+        }
+
+        .ml-model-status .dot.loaded {
+            background: var(--trend-stable);
+            animation: dotPulse 2s infinite;
+        }
+
+        @keyframes dotPulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .ml-loading {
+            display: none;
+            text-align: center;
+            padding: 1rem;
+            color: var(--text-secondary);
+        }
+
+        .ml-loading.active {
+            display: block;
+        }
+
+        .ml-spinner {
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            border: 3px solid var(--bg-color);
+            border-top: 3px solid var(--sim-accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-bottom: 0.5rem;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
         }
     </style>
 </head>
@@ -255,9 +623,13 @@
             FireGuard
         </div>
         <nav>
-            <div class="nav-item active">
+            <div class="nav-item active" id="navDashboard">
                 <i class="ph ph-chart-bar"></i>
                 Dashboard
+            </div>
+            <div class="nav-item" id="navSimulate">
+                <i class="ph ph-play-circle"></i>
+                Simulate
             </div>
             <div class="nav-item">
                 <i class="ph ph-gear"></i>
@@ -268,50 +640,187 @@
                 Logs
             </div>
         </nav>
-        <button id="connectBtn" class="connect-btn">Connect Device</button>
+        <button id="connectBtn" class="connect-btn"><i class="ph ph-plug"></i> Connect Device</button>
     </aside>
 
     <main class="main-content">
         <header class="header">
             <div>
-                <h1>Overview <small style="font-size: 0.5em; color: #ccc;">v1.2</small></h1>
+                <h1>Overview <small style="font-size: 0.5em; color: #ccc;">v2.0</small></h1>
                 <div class="date" id="currentDate">Monday, 14 Oct</div>
             </div>
             <div class="badge safe" id="connectionStatus">Disconnected</div>
         </header>
 
-        <section class="grid">
-            <!-- Top Row Stats -->
-            <div class="card status-card">
+        <!-- Simulation Control Banner -->
+        <div class="sim-banner" id="simBanner">
+            <span class="sim-banner-icon"><i class="ph-fill ph-play-circle"></i></span>
+            <div class="sim-banner-text">
+                <div class="sim-banner-title">Simulation Mode</div>
+                <div class="sim-banner-sub" id="simPhaseLabel">Click Start to begin demo</div>
+            </div>
+            <div class="sim-controls">
+                <div class="sim-speed">
+                    <span>Speed:</span>
+                    <select id="simSpeed">
+                        <option value="2000">Slow</option>
+                        <option value="1000" selected>Normal</option>
+                        <option value="500">Fast</option>
+                        <option value="250">Turbo</option>
+                    </select>
+                </div>
+                <button class="sim-btn primary" id="simStartBtn">Start</button>
+                <button class="sim-btn" id="simResetBtn">Reset</button>
+            </div>
+            <div class="sim-progress"
+                style="position: absolute; bottom: 0; left: 0; right: 0; border-radius: 0 0 16px 16px;">
+                <div class="sim-progress-bar" id="simProgressBar"></div>
+            </div>
+        </div>
+
+        <!-- Row 1: Primary Stats -->
+        <section class="stats-row">
+            <div class="card">
                 <div class="card-title">System State</div>
                 <div class="badge safe" id="systemStateBadge">Loading...</div>
             </div>
-
-            <div class="card risk-card">
+            <div class="card">
                 <div class="card-title">Risk Score</div>
                 <div class="value-large">
                     <span id="riskValue">0</span><span class="unit">%</span>
                 </div>
             </div>
-
-            <div class="card gas-card">
+            <div class="card">
                 <div class="card-title">Gas Z-Score</div>
                 <div class="value-large" id="zScoreValue">0.0</div>
             </div>
-
-            <div class="card flame-card">
+            <div class="card">
                 <div class="card-title">Flame Status</div>
-                <div class="value-large" style="font-size: 1.5rem; margin-top: 1rem;" id="flameStatus">Safe</div>
+                <div class="value-medium" style="margin-top: 0.5rem;" id="flameStatus">Safe</div>
             </div>
+        </section>
 
-            <!-- Middle/Bottom Row -->
+        <!-- Row 2: Multi-Feature Detail Cards -->
+        <section class="detail-row">
+            <div class="card">
+                <div class="card-title">Gas Trend</div>
+                <div class="trend-indicator">
+                    <span class="trend-arrow trend-stable" id="trendArrow">—</span>
+                    <span id="trendValue" class="value-medium">0.0</span>
+                    <span class="unit">/sec</span>
+                </div>
+                <div class="card-sublabel" id="trendLabel">Stable</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Raw Gas Level</div>
+                <div class="value-medium">
+                    <span id="rawGasValue">0</span><span class="unit"> ADC</span>
+                </div>
+                <div class="card-sublabel" id="rawGasLabel">Normal range</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Flame Persistence</div>
+                <div class="value-medium">
+                    <span id="flamePersistValue">0</span><span class="unit"> ticks</span>
+                </div>
+                <div class="card-sublabel" id="flamePersistLabel">No flame detected</div>
+            </div>
+        </section>
+
+        <!-- Row 3: Simulated Environment Sensors (visible in sim mode) -->
+        <section class="detail-row" id="simSensorRow" style="display: none;">
+            <div class="card" style="border-left: 3px solid var(--sim-accent);">
+                <div class="card-title">Temperature</div>
+                <div class="value-medium">
+                    <span id="simTempValue">22.0</span><span class="unit"> °C</span>
+                </div>
+                <div class="card-sublabel" id="simTempLabel">Normal</div>
+            </div>
+            <div class="card" style="border-left: 3px solid var(--sim-accent);">
+                <div class="card-title">Humidity</div>
+                <div class="value-medium">
+                    <span id="simHumidityValue">45</span><span class="unit"> %</span>
+                </div>
+                <div class="card-sublabel" id="simHumidityLabel">Comfortable</div>
+            </div>
+            <div class="card" style="border-left: 3px solid var(--sim-accent);">
+                <div class="card-title">CO Level</div>
+                <div class="value-medium">
+                    <span id="simCOValue">0.5</span><span class="unit"> ppm</span>
+                </div>
+                <div class="card-sublabel" id="simCOLabel">Safe</div>
+            </div>
+        </section>
+
+        <!-- ML Image Detection Section -->
+        <section class="ml-section" id="mlSection">
+            <div class="ml-card">
+                <div class="card-title">Image Fire Detection</div>
+                <div class="ml-model-status" id="mlModelStatus">
+                    <span class="dot" id="mlModelDot"></span>
+                    <span id="mlModelText">Model not loaded</span>
+                </div>
+                <div class="drop-zone" id="dropZone">
+                    <div class="drop-zone-icon"><i class="ph ph-upload-simple"></i></div>
+                    <div class="drop-zone-text">
+                        Drag &amp; drop an image here<br>or <strong>click to browse</strong>
+                    </div>
+                    <input type="file" id="fileInput" accept="image/*" style="display: none;">
+                </div>
+                <div class="ml-loading" id="mlLoading">
+                    <div class="ml-spinner"></div>
+                    <div>Analyzing image...</div>
+                </div>
+                <div class="ml-result" id="mlResult">
+                    <div class="ml-result-label" id="mlResultLabel"></div>
+                    <div class="ml-result-confidence" id="mlResultConf"></div>
+                    <div class="confidence-bar">
+                        <div class="confidence-fill" id="mlConfFill"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="ml-card">
+                <div class="card-title">Model Info</div>
+                <div class="ml-stats">
+                    <div class="ml-stat-item">
+                        <div class="ml-stat-value" id="mlAccuracy">97.7%</div>
+                        <div class="ml-stat-label">Accuracy</div>
+                    </div>
+                    <div class="ml-stat-item">
+                        <div class="ml-stat-value" id="mlPrecision">95.7%</div>
+                        <div class="ml-stat-label">Precision</div>
+                    </div>
+                    <div class="ml-stat-item">
+                        <div class="ml-stat-value" id="mlRecall">91.7%</div>
+                        <div class="ml-stat-label">Recall</div>
+                    </div>
+                    <div class="ml-stat-item">
+                        <div class="ml-stat-value" id="mlModelSize">9.1 MB</div>
+                        <div class="ml-stat-label">Model Size</div>
+                    </div>
+                </div>
+                <div class="card-title" style="margin-top: 1.25rem;">Architecture</div>
+                <div style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.7; margin-top: 0.25rem;">
+                    <strong>Base:</strong> MobileNetV2 (ImageNet)<br>
+                    <strong>Head:</strong> GAP → Dense(64) → Sigmoid<br>
+                    <strong>Input:</strong> 128×128 RGB<br>
+                    <strong>Training:</strong> 651 images (2-phase fine-tuning)<br>
+                    <strong>Classes:</strong> Fire (1) / No Fire (0)
+                </div>
+                <div class="card-title" style="margin-top: 1.25rem;">Prediction History</div>
+                <ul class="log-list" id="mlHistory" style="max-height: 150px;">
+                    <li class="log-item" style="color: var(--text-secondary);">No predictions yet</li>
+                </ul>
+            </div>
+        </section>
+
+        <section class="bottom-row">
             <div class="card chart-card">
                 <div class="card-title">Live Trend</div>
                 <div style="flex:1; position: relative;">
                     <canvas id="liveChart"></canvas>
                 </div>
             </div>
-
             <div class="card log-card">
                 <div class="card-title">Recent Events</div>
                 <ul class="log-list" id="eventLog">
@@ -322,21 +831,57 @@
     </main>
 
     <script>
-        // DOM Elements
+        // ============ DOM Elements ============
         const connectBtn = document.getElementById('connectBtn');
         const statusBadge = document.getElementById('connectionStatus');
         const systemStateBadge = document.getElementById('systemStateBadge');
         const riskValue = document.getElementById('riskValue');
         const zScoreValue = document.getElementById('zScoreValue');
         const flameStatus = document.getElementById('flameStatus');
+        const trendArrow = document.getElementById('trendArrow');
+        const trendValue = document.getElementById('trendValue');
+        const trendLabel = document.getElementById('trendLabel');
+        const rawGasValue = document.getElementById('rawGasValue');
+        const rawGasLabel = document.getElementById('rawGasLabel');
+        const flamePersistValue = document.getElementById('flamePersistValue');
+        const flamePersistLabel = document.getElementById('flamePersistLabel');
         const logList = document.getElementById('eventLog');
         const currentDate = document.getElementById('currentDate');
+
+        // Sim DOM
+        const navSimulate = document.getElementById('navSimulate');
+        const simBanner = document.getElementById('simBanner');
+        const simStartBtn = document.getElementById('simStartBtn');
+        const simResetBtn = document.getElementById('simResetBtn');
+        const simPhaseLabel = document.getElementById('simPhaseLabel');
+        const simProgressBar = document.getElementById('simProgressBar');
+        const simSpeedSelect = document.getElementById('simSpeed');
+        const simSensorRow = document.getElementById('simSensorRow');
+        const simTempValue = document.getElementById('simTempValue');
+        const simTempLabel = document.getElementById('simTempLabel');
+        const simHumidityValue = document.getElementById('simHumidityValue');
+        const simHumidityLabel = document.getElementById('simHumidityLabel');
+        const simCOValue = document.getElementById('simCOValue');
+        const simCOLabel = document.getElementById('simCOLabel');
+
+        // ML DOM
+        const mlSection = document.getElementById('mlSection');
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const mlLoading = document.getElementById('mlLoading');
+        const mlResult = document.getElementById('mlResult');
+        const mlResultLabel = document.getElementById('mlResultLabel');
+        const mlResultConf = document.getElementById('mlResultConf');
+        const mlConfFill = document.getElementById('mlConfFill');
+        const mlModelDot = document.getElementById('mlModelDot');
+        const mlModelText = document.getElementById('mlModelText');
+        const mlHistory = document.getElementById('mlHistory');
 
         // Update Date
         const now = new Date();
         currentDate.innerText = now.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
 
-        // Chart Configuration
+        // ============ Chart ============
         const ctx = document.getElementById('liveChart').getContext('2d');
         const liveChart = new Chart(ctx, {
             type: 'line',
@@ -344,18 +889,19 @@
                 labels: [],
                 datasets: [{
                     label: 'Risk Score',
-                    borderColor: '#c53030', // Red
+                    borderColor: '#c53030',
                     backgroundColor: 'rgba(197, 48, 48, 0.1)',
-                    data: [],
-                    fill: true,
-                    tension: 0.4
+                    data: [], fill: true, tension: 0.4
                 }, {
-                    label: 'Gas Value (Scaled)',
-                    borderColor: '#3182ce', // Blue
+                    label: 'Gas (Scaled)',
+                    borderColor: '#3182ce',
                     backgroundColor: 'rgba(49, 130, 206, 0.1)',
-                    data: [],
-                    fill: true,
-                    tension: 0.4
+                    data: [], fill: true, tension: 0.4
+                }, {
+                    label: 'Trend (Scaled)',
+                    borderColor: '#d69e2e',
+                    backgroundColor: 'rgba(214, 158, 46, 0.1)',
+                    data: [], fill: true, tension: 0.4
                 }]
             },
             options: {
@@ -365,26 +911,26 @@
                 scales: {
                     x: { display: false },
                     y: { beginAtZero: true, max: 100 }
+                },
+                plugins: {
+                    legend: { labels: { font: { family: 'Outfit', size: 11 } } }
                 }
             }
         });
 
-        // Serial Connection Variables
+        // ============ Serial / SSE (unchanged) ============
         let port;
         let reader;
         let keepReading = false;
         let eventSource;
+        let lastState = '';
 
-        // Helper to log to the UI
         function logToDashboard(message) {
             const li = document.createElement('li');
             li.className = 'log-item';
             li.innerHTML = `<strong>${new Date().toLocaleTimeString()}</strong>: ${message}`;
-            logList.prepend(li); // Add to top
-            // Keep list size manageable
-            if (logList.children.length > 50) {
-                logList.removeChild(logList.lastChild);
-            }
+            logList.prepend(li);
+            if (logList.children.length > 50) logList.removeChild(logList.lastChild);
         }
 
         async function connectSerial() {
@@ -392,55 +938,38 @@
                 try {
                     port = await navigator.serial.requestPort();
                     await port.open({ baudRate: 115200 });
-
                     statusBadge.innerText = "Connected (USB)";
                     statusBadge.className = 'badge safe';
                     connectBtn.innerText = "Disconnect USB";
                     logToDashboard("Connected via USB Serial");
-
                     keepReading = true;
                     readSerialLoop();
                 } catch (err) {
                     console.error("Serial Connection Error:", err);
                     logToDashboard(`Serial Error: ${err.message}`);
-                    alert("Failed to connect via USB. See logs.");
                 }
             } else {
-                alert("Web Serial API not supported. Please use Chrome/Edge.");
+                alert("Web Serial API not supported. Use Chrome/Edge.");
             }
         }
 
-        // Connect Button Listener
         connectBtn.addEventListener('click', async () => {
             const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:';
-
             if (isLocal) {
-                // If local, toggle Serial
-                if (port && port.readable) {
-                    // Disconnect logic could go here, but for now just reload or ignore
-                    location.reload();
-                } else {
-                    await connectSerial();
-                }
+                if (port && port.readable) location.reload();
+                else await connectSerial();
             } else {
-                // If on device, toggle SSE (Reconnect)
                 logToDashboard("Manual reconnection attempt...");
-                if (eventSource && eventSource.readyState !== EventSource.CLOSED) {
-                    eventSource.close();
-                }
+                if (eventSource && eventSource.readyState !== EventSource.CLOSED) eventSource.close();
                 startSSE();
             }
         });
 
-        // Auto-connect Logic
         const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:';
-
         if (isLocal) {
-            console.log("Running locally. Defaulting to USB Serial mode.");
             connectBtn.innerText = "Connect via USB";
             logToDashboard("Ready. Click 'Connect via USB' to start.");
         } else {
-            console.log("Hosted on device, attempting SSE connection...");
             connectBtn.innerText = "Reconnect WiFi";
             startSSE();
         }
@@ -449,50 +978,35 @@
             logToDashboard("Connecting to Event Stream at /events...");
             statusBadge.innerText = "Connecting...";
             statusBadge.className = 'badge warning';
-
             if (eventSource) eventSource.close();
-
             eventSource = new EventSource('/events');
-
             eventSource.onopen = function () {
-                console.log("SSE Connected");
                 logToDashboard("WiFi Connected successfully.");
                 statusBadge.innerText = "Connected (Wi-Fi)";
                 statusBadge.className = 'badge safe';
             };
-
-            eventSource.onerror = function (e) {
-                console.log("SSE Error", e);
+            eventSource.onerror = function () {
                 if (eventSource.readyState != EventSource.OPEN) {
                     statusBadge.innerText = "Reconnecting...";
                     statusBadge.className = 'badge warning';
                 }
             };
-
-            eventSource.onmessage = function (e) {
-                parseData(e.data);
-            };
+            eventSource.onmessage = function (e) { parseData(e.data); };
         }
 
         async function readSerialLoop() {
             const textDecoder = new TextDecoderStream();
-            const readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
+            port.readable.pipeTo(textDecoder.writable);
             const reader = textDecoder.readable.getReader();
-
             let buffer = "";
-
             try {
                 while (true) {
                     const { value, done } = await reader.read();
                     if (done) break;
-
                     buffer += value;
                     const lines = buffer.split('\n');
-                    buffer = lines.pop(); // Keep incomplete line in buffer
-
-                    for (const line of lines) {
-                        parseData(line.trim());
-                    }
+                    buffer = lines.pop();
+                    for (const line of lines) parseData(line.trim());
                 }
             } catch (error) {
                 console.error("Read Error:", error);
@@ -502,60 +1016,495 @@
         }
 
         function parseData(line) {
-            // Expected format: "Gas:1200,ZScore:0.5,Risk:2.5,Flame:0,State:SAFE"
-            // Tolerant Regex
-            const regex = /Gas:([\d.]+),ZScore:([\d.-]+),Risk:([\d.]+),Flame:(\d),State:(\w+)/;
+            const regex = /Gas:([\d.]+),ZScore:([\d.-]+),Trend:([\d.-]+),Risk:([\d.]+),Flame:(\d),FlamePersist:(\d+),State:(\w+)/;
             const match = line.match(regex);
-
             if (match) {
-                const gas = parseFloat(match[1]);
-                const zScore = parseFloat(match[2]);
-                const risk = parseFloat(match[3]);
-                const flame = parseInt(match[4]);
-                const state = match[5];
-
-                updateDashboard(gas, zScore, risk, flame, state);
+                updateDashboard(
+                    parseFloat(match[1]), parseFloat(match[2]), parseFloat(match[3]),
+                    parseFloat(match[4]), parseInt(match[5]), parseInt(match[6]), match[7]
+                );
             }
         }
 
-        function updateDashboard(gas, zScore, risk, flame, state) {
-            // Update Text Values
+        // ============ Dashboard Update ============
+        function updateDashboard(gas, zScore, trend, risk, flame, flamePersist, state) {
             riskValue.innerText = risk.toFixed(1);
             zScoreValue.innerText = zScore.toFixed(2);
 
-            // Update State Badge
             systemStateBadge.innerText = state;
-            systemStateBadge.className = 'badge'; // Reset classes
+            systemStateBadge.className = 'badge';
             if (state === 'SAFE') systemStateBadge.classList.add('safe');
             else if (state === 'WARNING') systemStateBadge.classList.add('warning');
             else systemStateBadge.classList.add('emergency');
 
-            // Update Flame Status
+            if (state !== lastState && lastState !== '') {
+                logToDashboard(`State changed: ${lastState} → ${state}`);
+            }
+            lastState = state;
+
             if (flame === 1) {
                 flameStatus.innerText = "FIRE DETECTED";
-                flameStatus.style.color = "red";
+                flameStatus.style.color = "var(--status-danger-text)";
             } else {
                 flameStatus.innerText = "Safe";
                 flameStatus.style.color = "var(--text-main)";
             }
 
-            // Update Chart
-            addDataToChart(liveChart, risk, gas / 40);
-        }
-
-        function addDataToChart(chart, risk, gas) {
-            const label = new Date().toLocaleTimeString();
-
-            if (chart.data.labels.length > 50) {
-                chart.data.labels.shift();
-                chart.data.datasets[0].data.shift();
-                chart.data.datasets[1].data.shift();
+            trendValue.innerText = Math.abs(trend).toFixed(1);
+            if (trend > 2.0) {
+                trendArrow.innerText = "↑";
+                trendArrow.className = "trend-arrow trend-rising";
+                trendLabel.innerText = "Rising — elevated risk";
+            } else if (trend < -2.0) {
+                trendArrow.innerText = "↓";
+                trendArrow.className = "trend-arrow trend-falling";
+                trendLabel.innerText = "Falling — improving";
+            } else {
+                trendArrow.innerText = "—";
+                trendArrow.className = "trend-arrow trend-stable";
+                trendLabel.innerText = "Stable";
             }
 
+            rawGasValue.innerText = gas.toFixed(0);
+            if (gas >= 2500) {
+                rawGasLabel.innerText = "DANGER — very high";
+                rawGasLabel.style.color = "var(--status-danger-text)";
+            } else if (gas >= 800) {
+                rawGasLabel.innerText = "Elevated";
+                rawGasLabel.style.color = "var(--status-warning-text)";
+            } else {
+                rawGasLabel.innerText = "Normal range";
+                rawGasLabel.style.color = "var(--text-secondary)";
+            }
+
+            flamePersistValue.innerText = flamePersist;
+            if (flamePersist >= 3) {
+                flamePersistLabel.innerText = "Confirmed fire";
+                flamePersistLabel.style.color = "var(--status-danger-text)";
+            } else if (flamePersist > 0) {
+                flamePersistLabel.innerText = "Flicker detected";
+                flamePersistLabel.style.color = "var(--status-warning-text)";
+            } else {
+                flamePersistLabel.innerText = "No flame detected";
+                flamePersistLabel.style.color = "var(--text-secondary)";
+            }
+
+            addDataToChart(liveChart, risk, gas / 40, Math.max(0, trend * 2));
+        }
+
+        function addDataToChart(chart, risk, gas, trend) {
+            const label = new Date().toLocaleTimeString();
+            if (chart.data.labels.length > 50) {
+                chart.data.labels.shift();
+                chart.data.datasets.forEach(ds => ds.data.shift());
+            }
             chart.data.labels.push(label);
             chart.data.datasets[0].data.push(risk);
             chart.data.datasets[1].data.push(gas);
+            chart.data.datasets[2].data.push(trend);
             chart.update();
+        }
+
+        // ============================================================
+        // =================== SIMULATION ENGINE ======================
+        // ============================================================
+
+        const SIM_PHASES = [
+            {
+                name: 'BOOTUP',
+                state: 'BOOTUP',
+                duration: 6,
+                desc: 'System booting — learning baseline...',
+                gas: { start: 300, end: 350 },
+                zScore: { start: 0, end: 0.5 },
+                trend: { start: 0, end: 0.2 },
+                risk: { start: 0, end: 2 },
+                flame: 0, flamePersist: 0,
+                temp: { start: 22, end: 23 },
+                humidity: { start: 45, end: 44 },
+                co: { start: 0.5, end: 0.8 }
+            },
+            {
+                name: 'SAFE',
+                state: 'SAFE',
+                duration: 10,
+                desc: 'Environment safe — normal readings',
+                gas: { start: 350, end: 500 },
+                zScore: { start: 0.5, end: 1.5 },
+                trend: { start: 0.2, end: 1.0 },
+                risk: { start: 2, end: 8 },
+                flame: 0, flamePersist: 0,
+                temp: { start: 23, end: 25 },
+                humidity: { start: 44, end: 42 },
+                co: { start: 0.8, end: 1.5 }
+            },
+            {
+                name: 'WARNING',
+                state: 'WARNING',
+                duration: 10,
+                desc: 'Gas levels rising — warning threshold breached',
+                gas: { start: 500, end: 1200 },
+                zScore: { start: 1.5, end: 4.5 },
+                trend: { start: 1.0, end: 15.0 },
+                risk: { start: 8, end: 55 },
+                flame: 0, flamePersist: 0,
+                temp: { start: 25, end: 35 },
+                humidity: { start: 42, end: 32 },
+                co: { start: 1.5, end: 12 }
+            },
+            {
+                name: 'HIGH_RISK',
+                state: 'HIGH_RISK',
+                duration: 8,
+                desc: 'Significant gas detected — high risk!',
+                gas: { start: 1200, end: 2800 },
+                zScore: { start: 4.5, end: 8.0 },
+                trend: { start: 15.0, end: 45.0 },
+                risk: { start: 55, end: 92 },
+                flame: 0, flamePersist: 0,
+                temp: { start: 35, end: 55 },
+                humidity: { start: 32, end: 20 },
+                co: { start: 12, end: 50 }
+            },
+            {
+                name: 'EMERGENCY',
+                state: 'EMERGENCY',
+                duration: 8,
+                desc: 'FIRE DETECTED — emergency override!',
+                gas: { start: 2800, end: 3500 },
+                zScore: { start: 8.0, end: 12.0 },
+                trend: { start: 45.0, end: 60.0 },
+                risk: { start: 92, end: 100 },
+                flame: 1, flamePersistRamp: true,
+                temp: { start: 55, end: 120 },
+                humidity: { start: 20, end: 10 },
+                co: { start: 50, end: 200 }
+            },
+            {
+                name: 'COOLDOWN',
+                state: 'SAFE',
+                duration: 10,
+                desc: 'Fire suppressed — returning to safe',
+                gas: { start: 3500, end: 400 },
+                zScore: { start: 12.0, end: 0.3 },
+                trend: { start: -30.0, end: -1.0 },
+                risk: { start: 100, end: 3 },
+                flame: 0, flamePersist: 0,
+                temp: { start: 120, end: 24 },
+                humidity: { start: 10, end: 43 },
+                co: { start: 200, end: 1.0 }
+            }
+        ];
+
+        let simRunning = false;
+        let simInterval = null;
+        let simPhaseIndex = 0;
+        let simTickInPhase = 0;
+        let simTotalTicks = 0;
+
+        function getTotalSimTicks() {
+            const speed = parseInt(simSpeedSelect.value);
+            return SIM_PHASES.reduce((sum, p) => sum + Math.ceil((p.duration * 1000) / speed), 0);
+        }
+
+        // Toggle simulate panel
+        navSimulate.addEventListener('click', () => {
+            const isActive = simBanner.classList.contains('active');
+            if (isActive) {
+                // Turn off sim panel
+                simBanner.classList.remove('active');
+                simSensorRow.style.display = 'none';
+                mlSection.classList.remove('active');
+                navSimulate.classList.remove('sim-active');
+                if (simRunning) stopSimulation();
+            } else {
+                // Turn on sim panel
+                simBanner.classList.add('active');
+                simSensorRow.style.display = 'grid';
+                mlSection.classList.add('active');
+                navSimulate.classList.add('sim-active');
+                statusBadge.innerText = "Simulation";
+                statusBadge.className = 'badge warning';
+                logToDashboard("Simulation mode activated");
+                loadMLModel(); // Load model when sim tab opens
+            }
+        });
+
+        simStartBtn.addEventListener('click', () => {
+            if (simRunning) {
+                pauseSimulation();
+            } else {
+                startSimulation();
+            }
+        });
+
+        simResetBtn.addEventListener('click', () => {
+            stopSimulation();
+            resetSimulation();
+        });
+
+        function startSimulation() {
+            simRunning = true;
+            simStartBtn.innerText = 'Pause';
+            simTotalTicks = getTotalSimTicks();
+            logToDashboard("Simulation started");
+
+            const speed = parseInt(simSpeedSelect.value);
+            simInterval = setInterval(simTick, speed);
+        }
+
+        function pauseSimulation() {
+            simRunning = false;
+            simStartBtn.innerText = 'Resume';
+            clearInterval(simInterval);
+            logToDashboard("Simulation paused");
+        }
+
+        function stopSimulation() {
+            simRunning = false;
+            simStartBtn.innerText = 'Start';
+            clearInterval(simInterval);
+        }
+
+        function resetSimulation() {
+            simPhaseIndex = 0;
+            simTickInPhase = 0;
+            simProgressBar.style.width = '0%';
+            simPhaseLabel.innerText = 'Click Start to begin demo';
+
+            // Reset dashboard values
+            updateDashboard(300, 0, 0, 0, 0, 0, 'BOOTUP');
+            updateSimSensors(22, 45, 0.5);
+
+            // Clear chart
+            liveChart.data.labels = [];
+            liveChart.data.datasets.forEach(ds => ds.data = []);
+            liveChart.update();
+
+            logToDashboard("Simulation reset");
+        }
+
+        let globalSimTick = 0;
+
+        function simTick() {
+            if (simPhaseIndex >= SIM_PHASES.length) {
+                stopSimulation();
+                simPhaseLabel.innerText = 'Simulation complete!';
+                simProgressBar.style.width = '100%';
+                logToDashboard("Simulation complete — full cycle demonstrated");
+                return;
+            }
+
+            const phase = SIM_PHASES[simPhaseIndex];
+            const speed = parseInt(simSpeedSelect.value);
+            const ticksInPhase = Math.ceil((phase.duration * 1000) / speed);
+            const t = simTickInPhase / Math.max(ticksInPhase - 1, 1); // 0 → 1
+
+            // Interpolate values with slight noise
+            const noise = () => (Math.random() - 0.5) * 2;
+            const lerp = (a, b) => a + (b - a) * t;
+
+            const gas = lerp(phase.gas.start, phase.gas.end) + noise() * 20;
+            const zScore = lerp(phase.zScore.start, phase.zScore.end) + noise() * 0.3;
+            const trend = lerp(phase.trend.start, phase.trend.end) + noise() * 1;
+            const risk = lerp(phase.risk.start, phase.risk.end) + noise() * 1.5;
+            const flame = phase.flame;
+            let flamePersist = phase.flamePersist || 0;
+            if (phase.flamePersistRamp) {
+                flamePersist = Math.min(Math.floor(t * 8), 8);
+            }
+
+            // Simulated environment sensors
+            const temp = lerp(phase.temp.start, phase.temp.end) + noise() * 0.5;
+            const humidity = lerp(phase.humidity.start, phase.humidity.end) + noise() * 1;
+            const co = lerp(phase.co.start, phase.co.end) + noise() * 0.2;
+
+            // Update phase label
+            simPhaseLabel.innerText = `Phase: ${phase.name} — ${phase.desc}`;
+
+            // Update dashboard
+            updateDashboard(
+                Math.max(0, gas),
+                zScore,
+                trend,
+                Math.max(0, Math.min(100, risk)),
+                flame,
+                flamePersist,
+                phase.state
+            );
+
+            // Update simulated sensors
+            updateSimSensors(temp, Math.max(0, humidity), Math.max(0, co));
+
+            // Progress bar
+            globalSimTick++;
+            const totalTicks = getTotalSimTicks();
+            simProgressBar.style.width = ((globalSimTick / totalTicks) * 100) + '%';
+
+            // Advance tick
+            simTickInPhase++;
+            if (simTickInPhase >= ticksInPhase) {
+                simTickInPhase = 0;
+                simPhaseIndex++;
+            }
+        }
+
+        function updateSimSensors(temp, humidity, co) {
+            simTempValue.innerText = temp.toFixed(1);
+            if (temp >= 60) {
+                simTempLabel.innerText = "CRITICAL — extreme heat";
+                simTempLabel.style.color = "var(--status-danger-text)";
+            } else if (temp >= 35) {
+                simTempLabel.innerText = "Elevated temperature";
+                simTempLabel.style.color = "var(--status-warning-text)";
+            } else {
+                simTempLabel.innerText = "Normal";
+                simTempLabel.style.color = "var(--text-secondary)";
+            }
+
+            simHumidityValue.innerText = humidity.toFixed(0);
+            if (humidity <= 20) {
+                simHumidityLabel.innerText = "Very dry — fire risk";
+                simHumidityLabel.style.color = "var(--status-danger-text)";
+            } else if (humidity <= 35) {
+                simHumidityLabel.innerText = "Low humidity";
+                simHumidityLabel.style.color = "var(--status-warning-text)";
+            } else {
+                simHumidityLabel.innerText = "Comfortable";
+                simHumidityLabel.style.color = "var(--text-secondary)";
+            }
+
+            simCOValue.innerText = co.toFixed(1);
+            if (co >= 35) {
+                simCOLabel.innerText = "DANGER — evacuate";
+                simCOLabel.style.color = "var(--status-danger-text)";
+            } else if (co >= 9) {
+                simCOLabel.innerText = "Elevated CO";
+                simCOLabel.style.color = "var(--status-warning-text)";
+            } else {
+                simCOLabel.innerText = "Safe";
+                simCOLabel.style.color = "var(--text-secondary)";
+            }
+        }
+
+        // Speed change while running
+        simSpeedSelect.addEventListener('change', () => {
+            if (simRunning) {
+                clearInterval(simInterval);
+                const speed = parseInt(simSpeedSelect.value);
+                simInterval = setInterval(simTick, speed);
+            }
+        });
+
+        // ===================== ML IMAGE DETECTION =====================
+        let predictionCount = 0;
+
+        // No model loading needed for server-side inference
+        function loadMLModel() {
+            mlModelText.innerText = 'Backend Ready (Port 5001)';
+            mlModelDot.classList.add('loaded');
+        }
+
+        // Drag & Drop handlers
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                processImage(file);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) processImage(file);
+        });
+
+        async function processImage(file) {
+            // Show preview
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                // Replace drop zone content with image preview
+                dropZone.innerHTML = `<img src="${e.target.result}" alt="Uploaded image">`;
+
+                // Show loading
+                mlLoading.classList.add('active');
+                mlResult.className = 'ml-result';
+
+                // Upload to Backend
+                const formData = new FormData();
+                formData.append('file', file);
+
+                try {
+                    const response = await fetch('http://localhost:5001/predict', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (!response.ok) throw new Error('Backend Error');
+
+                    const result = await response.json();
+                    showResult(result, file.name);
+
+                } catch (err) {
+                    console.error('Inference error:', err);
+                    mlResult.className = 'ml-result active safe';
+                    mlResultLabel.innerText = '❌ Error';
+                    mlResultConf.innerText = 'Ensure ml/backend.py is running on port 5001';
+                    mlConfFill.style.width = '0%';
+                }
+
+                mlLoading.classList.remove('active');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Client-side inference removed in favor of backend
+
+        function showResult(prediction, fileName) {
+            predictionCount++;
+            const conf = (prediction.confidence * 100).toFixed(1);
+
+            if (prediction.isFire) {
+                mlResult.className = 'ml-result active fire';
+                mlResultLabel.innerText = '🔥 FIRE DETECTED';
+                mlResultLabel.style.color = 'var(--status-danger-text)';
+                mlConfFill.style.background = 'var(--status-danger-text)';
+            } else {
+                mlResult.className = 'ml-result active safe';
+                mlResultLabel.innerText = '✅ NO FIRE';
+                mlResultLabel.style.color = 'var(--status-safe-text)';
+                mlConfFill.style.background = 'var(--status-safe-text)';
+            }
+
+            mlResultConf.innerText = `Confidence: ${conf}%  |  Score: ${prediction.rawScore.toFixed(4)}`;
+            mlConfFill.style.width = `${prediction.confidence * 100}%`;
+
+            // Add to history
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const label = prediction.isFire ? '🔥 Fire' : '✅ Safe';
+            const entry = document.createElement('li');
+            entry.className = 'log-item';
+            entry.innerHTML = `<strong>${time}</strong>: ${label} (${conf}%) — ${fileName}`;
+
+            if (predictionCount === 1) {
+                mlHistory.innerHTML = ''; // Remove "No predictions yet"
+            }
+            mlHistory.prepend(entry);
+
+            // Also log to main dashboard
+            logToDashboard(`ML: ${label} — ${conf}% confidence`);
         }
     </script>
 </body>
