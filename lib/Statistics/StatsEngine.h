@@ -15,12 +15,17 @@ private:
 
     void updateSums(float oldVal, float newVal);
 
+    float _rateOfChange;
+    unsigned long _tickRateMs;
+
 public:
-    StatsEngine(size_t windowSize);
+    StatsEngine(size_t windowSize, unsigned long tickRateMs = 500);
     void addSample(float value);
     float getMean();
     float getStdDev();
     float getZScore(float value);
+    float getRateOfChange();   // Returns units/sec rise rate
+    float getOldestSample();   // Returns oldest value in buffer
     bool isBaselineReady();
 };
 

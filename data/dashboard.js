@@ -5,6 +5,13 @@ const systemStateBadge = document.getElementById('systemStateBadge');
 const riskValue = document.getElementById('riskValue');
 const zScoreValue = document.getElementById('zScoreValue');
 const flameStatus = document.getElementById('flameStatus');
+const trendArrow = document.getElementById('trendArrow');
+const trendValue = document.getElementById('trendValue');
+const trendLabel = document.getElementById('trendLabel');
+const rawGasValue = document.getElementById('rawGasValue');
+const rawGasLabel = document.getElementById('rawGasLabel');
+const flamePersistValue = document.getElementById('flamePersistValue');
+const flamePersistLabel = document.getElementById('flamePersistLabel');
 const logList = document.getElementById('eventLog');
 const currentDate = document.getElementById('currentDate');
 
@@ -20,15 +27,22 @@ const liveChart = new Chart(ctx, {
         labels: [],
         datasets: [{
             label: 'Risk Score',
-            borderColor: '#c53030', // Red
+            borderColor: '#c53030',
             backgroundColor: 'rgba(197, 48, 48, 0.1)',
             data: [],
             fill: true,
             tension: 0.4
         }, {
-            label: 'Gas Value (Scaled)',
-            borderColor: '#3182ce', // Blue
+            label: 'Gas (Scaled)',
+            borderColor: '#3182ce',
             backgroundColor: 'rgba(49, 130, 206, 0.1)',
+            data: [],
+            fill: true,
+            tension: 0.4
+        }, {
+            label: 'Trend (Scaled)',
+            borderColor: '#d69e2e',
+            backgroundColor: 'rgba(214, 158, 46, 0.1)',
             data: [],
             fill: true,
             tension: 0.4
@@ -41,6 +55,11 @@ const liveChart = new Chart(ctx, {
         scales: {
             x: { display: false },
             y: { beginAtZero: true, max: 100 }
+        },
+        plugins: {
+            legend: {
+                labels: { font: { family: 'Outfit', size: 11 } }
+            }
         }
     }
 });
@@ -49,14 +68,15 @@ const liveChart = new Chart(ctx, {
 let port;
 let reader;
 let keepReading = false;
+let eventSource;
+let lastState = '';
 
 // Helper to log to the UI
 function logToDashboard(message) {
     const li = document.createElement('li');
     li.className = 'log-item';
     li.innerHTML = `<strong>${new Date().toLocaleTimeString()}</strong>: ${message}`;
-    logList.prepend(li); // Add to top
-    // Keep list size manageable
+    logList.prepend(li);
     if (logList.children.length > 50) {
         logList.removeChild(logList.lastChild);
     }
@@ -64,7 +84,6 @@ function logToDashboard(message) {
 
 // Connect Button Listener
 connectBtn.addEventListener('click', async () => {
-    // If we are on HTTP, this is a Reconnect button for SSE
     if (window.location.protocol.startsWith('http')) {
         logToDashboard("Manual reconnection attempt...");
         if (eventSource && eventSource.readyState !== EventSource.CLOSED) {
@@ -74,7 +93,6 @@ connectBtn.addEventListener('click', async () => {
         return;
     }
 
-    // Otherwise, try Web Serial (USB)
     if ('serial' in navigator) {
         try {
             port = await navigator.serial.requestPort();
@@ -97,13 +115,10 @@ connectBtn.addEventListener('click', async () => {
     }
 });
 
-let eventSource;
-
 // Auto-connect if hosted on ESP32 (Wi-Fi)
 if (window.location.hostname && window.location.protocol.startsWith('http')) {
     console.log("Hosted on device, attempting SSE connection...");
-    connectBtn.innerText = "Reconnect WiFi"; // Change button text
-    // connectBtn.style.display = 'none'; // Keep visible for retry
+    connectBtn.innerText = "Reconnect WiFi";
     startSSE();
 } else {
     logToDashboard("Ready. Connect via USB or load from Device IP.");
@@ -127,16 +142,13 @@ function startSSE() {
 
     eventSource.onerror = function (e) {
         console.log("SSE Error", e);
-        // EventSource automatically retries, but let's update UI
         if (eventSource.readyState != EventSource.OPEN) {
             statusBadge.innerText = "Reconnecting...";
             statusBadge.className = 'badge warning';
-            // logToDashboard("Connection lost. Retrying..."); // Don't spam logs
         }
     };
 
     eventSource.onmessage = function (e) {
-        // console.log("SSE Data:", e.data);
         parseData(e.data);
     };
 }
@@ -155,7 +167,7 @@ async function readSerialLoop() {
 
             buffer += value;
             const lines = buffer.split('\n');
-            buffer = lines.pop(); // Keep incomplete line in buffer
+            buffer = lines.pop();
 
             for (const line of lines) {
                 parseData(line.trim());
@@ -169,61 +181,111 @@ async function readSerialLoop() {
 }
 
 function parseData(line) {
-    // Expected format: "Gas:1200,ZScore:0.5,Risk:2.5,Flame:0,State:SAFE"
-    // Regex to extract values
-    const regex = /Gas:([\d.]+),ZScore:([\d.-]+),Risk:([\d.]+),Flame:(\d),State:(\w+)/;
+    // New format: Gas:1200,ZScore:0.5,Trend:1.2,Risk:2.5,Flame:0,FlamePersist:0,State:SAFE
+    const regex = /Gas:([\d.]+),ZScore:([\d.-]+),Trend:([\d.-]+),Risk:([\d.]+),Flame:(\d),FlamePersist:(\d+),State:(\w+)/;
     const match = line.match(regex);
 
     if (match) {
         const gas = parseFloat(match[1]);
         const zScore = parseFloat(match[2]);
-        const risk = parseFloat(match[3]);
-        const flame = parseInt(match[4]);
-        const state = match[5];
+        const trend = parseFloat(match[3]);
+        const risk = parseFloat(match[4]);
+        const flame = parseInt(match[5]);
+        const flamePersist = parseInt(match[6]);
+        const state = match[7];
 
-        updateDashboard(gas, zScore, risk, flame, state);
+        updateDashboard(gas, zScore, trend, risk, flame, flamePersist, state);
     }
 }
 
-function updateDashboard(gas, zScore, risk, flame, state) {
-    // Update Text Values
+function updateDashboard(gas, zScore, trend, risk, flame, flamePersist, state) {
+    // Risk Score
     riskValue.innerText = risk.toFixed(1);
+
+    // Z-Score
     zScoreValue.innerText = zScore.toFixed(2);
 
-    // Update State Badge
+    // System State Badge
     systemStateBadge.innerText = state;
-    systemStateBadge.className = 'badge'; // Reset classes
+    systemStateBadge.className = 'badge';
     if (state === 'SAFE') systemStateBadge.classList.add('safe');
     else if (state === 'WARNING') systemStateBadge.classList.add('warning');
     else systemStateBadge.classList.add('emergency');
 
-    // Update Flame Status
-    if (flame === 1) { // 1 means NO FLAME in raw logic, wait... 
-        // In my C++ code:
-        // Serial.print(",Flame:"); Serial.print(flameDetected);
-        // flameDetected = true if LOW. So 1 = FIRE.
+    // Log state changes
+    if (state !== lastState && lastState !== '') {
+        logToDashboard(`State changed: ${lastState} → ${state}`);
+    }
+    lastState = state;
+
+    // Flame Status
+    if (flame === 1) {
         flameStatus.innerText = "FIRE DETECTED";
-        flameStatus.style.color = "red";
+        flameStatus.style.color = "var(--status-danger-text)";
     } else {
         flameStatus.innerText = "Safe";
         flameStatus.style.color = "var(--text-main)";
     }
 
+    // Gas Trend
+    trendValue.innerText = Math.abs(trend).toFixed(1);
+    if (trend > 2.0) {
+        trendArrow.innerText = "↑";
+        trendArrow.className = "trend-arrow trend-rising";
+        trendLabel.innerText = "Rising — elevated risk";
+    } else if (trend < -2.0) {
+        trendArrow.innerText = "↓";
+        trendArrow.className = "trend-arrow trend-falling";
+        trendLabel.innerText = "Falling — improving";
+    } else {
+        trendArrow.innerText = "—";
+        trendArrow.className = "trend-arrow trend-stable";
+        trendLabel.innerText = "Stable";
+    }
+
+    // Raw Gas Level
+    rawGasValue.innerText = gas.toFixed(0);
+    if (gas >= 2500) {
+        rawGasLabel.innerText = "DANGER — very high";
+        rawGasLabel.style.color = "var(--status-danger-text)";
+    } else if (gas >= 800) {
+        rawGasLabel.innerText = "Elevated";
+        rawGasLabel.style.color = "var(--status-warning-text)";
+    } else {
+        rawGasLabel.innerText = "Normal range";
+        rawGasLabel.style.color = "var(--text-secondary)";
+    }
+
+    // Flame Persistence
+    flamePersistValue.innerText = flamePersist;
+    if (flamePersist >= 3) {
+        flamePersistLabel.innerText = "Confirmed fire";
+        flamePersistLabel.style.color = "var(--status-danger-text)";
+    } else if (flamePersist > 0) {
+        flamePersistLabel.innerText = "Flicker detected";
+        flamePersistLabel.style.color = "var(--status-warning-text)";
+    } else {
+        flamePersistLabel.innerText = "No flame detected";
+        flamePersistLabel.style.color = "var(--text-secondary)";
+    }
+
     // Update Chart
-    addDataToChart(liveChart, risk, gas / 40); // Scale gas down to ~0-100 range for visibility
+    addDataToChart(liveChart, risk, gas / 40, Math.max(0, trend * 2));
 }
 
-function addDataToChart(chart, risk, gas) {
+function addDataToChart(chart, risk, gas, trend) {
     const label = new Date().toLocaleTimeString();
 
     if (chart.data.labels.length > 50) {
         chart.data.labels.shift();
         chart.data.datasets[0].data.shift();
         chart.data.datasets[1].data.shift();
+        chart.data.datasets[2].data.shift();
     }
 
     chart.data.labels.push(label);
     chart.data.datasets[0].data.push(risk);
     chart.data.datasets[1].data.push(gas);
+    chart.data.datasets[2].data.push(trend);
     chart.update();
 }

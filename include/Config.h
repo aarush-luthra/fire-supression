@@ -29,6 +29,22 @@
 #define Z_SCORE_WARNING_THRESHOLD 3.0f  // Statistically significant deviation
 #define Z_SCORE_HIGHRISK_THRESHOLD 6.0f // Very high deviation
 
+// Gas Absolute Level Thresholds (raw ADC values)
+#define GAS_ABSOLUTE_SAFE 800       // Below this = normal environment
+#define GAS_ABSOLUTE_DANGER 2500    // Above this = dangerous regardless of baseline
+
+// Trend Detection
+#define GAS_TREND_DANGER 50.0f      // Units/sec rise rate for max trend score
+
+// Flame Persistence
+#define FLAME_PERSIST_THRESHOLD 3   // Ticks of sustained flame = confirmed fire
+
+// Risk Weights (must sum to 1.0)
+#define RISK_WEIGHT_ZSCORE   0.35f
+#define RISK_WEIGHT_TREND    0.25f
+#define RISK_WEIGHT_ABSOLUTE 0.20f
+#define RISK_WEIGHT_FLAME    0.20f
+
 // System Update Rate
 #define SYSTEM_TICK_RATE_MS 500 // Main loop delay
 
